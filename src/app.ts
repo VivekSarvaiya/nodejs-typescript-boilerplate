@@ -6,15 +6,22 @@ import morgan from 'morgan';
 import { connectDB } from './config/db';
 import authRoutes from './routes/authRoutes';
 import { notFound, errorHandler } from './middleware/errorMiddleware';
+import { generalLimiter } from './middleware/rateLimiter';
 
 dotenv.config({ quiet: true });
 const app: Application = express();
 
 // Middleware
 app.use(express.json());
-app.use(cors({ origin: '*', credentials: true }));
+app.use(cors({ 
+  origin: process.env.CORS_ORIGIN || 'http://localhost:3000', 
+  credentials: true 
+}));
 app.use(helmet());
 app.use(morgan('dev'));
+
+// Rate limiting
+app.use(generalLimiter);
 
 // Routes
 app.use('/api/v1/auth', authRoutes);

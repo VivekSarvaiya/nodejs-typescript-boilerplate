@@ -3,6 +3,7 @@ import User from '../models/userModel';
 import generateToken from '../utils/generateToken';
 import bcrypt from 'bcryptjs';
 import { loginSchema, registerSchema } from '../validators/authValidator';
+import { sendSuccess, sendError } from '../utils/validationErrorHandler';
 
 /**
  * @desc    Register a new user
@@ -10,35 +11,30 @@ import { loginSchema, registerSchema } from '../validators/authValidator';
  */
 export const registerUser = async (req: Request, res: Response) => {
   try {
-    const parsed = registerSchema.safeParse(req.body);
-
-    if (!parsed.success) {
-      return res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
-    }
-
-    const { name, email, password } = parsed.data;
+    const { name, email, password } = req.body;
 
     const userExists = await User.findOne({ email });
     if (userExists) {
-      return res.status(400).json({ message: 'User already exists' });
+      return sendError(res, 'User already exists', 400, 'client_error', 'USER_EXISTS');
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await User.create({ name, email, password: passwordHash });
 
     if (user) {
-      return res.status(201).json({
+      const userData = {
         _id: user._id,
         name: user.name,
         email: user.email,
         token: generateToken(user._id.toString()),
-      });
+      };
+      return sendSuccess(res, userData, 'User registered successfully', 201);
     } else {
-      return res.status(500).json({ message: 'User creation failed' });
+      return sendError(res, 'User creation failed', 500, 'server_error', 'USER_CREATION_FAILED');
     }
   } catch (error: any) {
     console.error('Register Error:', error.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, 'Server Error', 500, 'server_error', 'INTERNAL_ERROR');
   }
 };
 
@@ -49,33 +45,24 @@ export const registerUser = async (req: Request, res: Response) => {
  */
 export const loginUser = async (req: Request, res: Response) => {
   try {
-    const parsed = loginSchema.safeParse(req.body);
-
-    if (!parsed.success) {
-      return res.status(400).json({ errors: parsed.error.flatten().fieldErrors });
-    }
-
-    const { email, password } = parsed.data;
-
-    if (!email || !password) {
-      return res.status(400).json({ message: 'Please provide email and password' });
-    }
+    const { email, password } = req.body;
 
     const user = await User.findOne({ email });
 
     if (user && (await bcrypt.compare(password, user.password))) {
-      return res.json({
+      const userData = {
         _id: user._id,
         name: user.name,
         email: user.email,
         token: generateToken(user._id.toString()),
-      });
+      };
+      return sendSuccess(res, userData, 'Login successful');
     } else {
-      return res.status(401).json({ message: 'Invalid email or password' });
+      return sendError(res, 'Invalid email or password', 401, 'client_error', 'INVALID_CREDENTIALS');
     }
   } catch (error: any) {
     console.error('Login Error:', error.message);
-    return res.status(500).json({ message: 'Server Error' });
+    return sendError(res, 'Server Error', 500, 'server_error', 'INTERNAL_ERROR');
   }
 };
 
@@ -84,5 +71,5 @@ export const loginUser = async (req: Request, res: Response) => {
  * @route   GET /api/auth/me
  */
 export const getUser = async (req: Request, res: Response) => {
-  return res.status(200).json(req.user);
+  return sendSuccess(res, req.user, 'User data retrieved successfully');
 };
